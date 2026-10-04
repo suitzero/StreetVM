@@ -68,15 +68,18 @@ with resources > 0 always yielding a result. There is no
 
 ### Quality is defined by the value
 
+**Quality Convention:** higher = better. Error-type measures are converted
+(e.g., quality = -width, quality = -variance).
+
 Do NOT force an (estimate, uncertainty) pair onto every value. Numbers are
 easy (`3.14 ± 0.01`); images, worlds, and behaviors are not. Each value
 kind defines what its quality means:
 
 | Value kind           | quality() means                        |
 |----------------------|----------------------------------------|
-| number               | error bound (e.g. ±0.01)               |
-| image                | reconstruction / perceptual error      |
-| Monte Carlo          | variance                               |
+| number               | negative error bound (e.g. -0.01)      |
+| image                | negative reconstruction error          |
+| Monte Carlo          | negative variance                      |
 | world model          | confidence / consistency               |
 | neural representation| task-defined fidelity                  |
 
