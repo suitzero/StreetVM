@@ -1,59 +1,67 @@
 import { Value } from './value.js';
 import { Interval } from './pi.js';
 
-export function add(x: Interval, y: Interval): Interval {
-  return { lo: x.lo + y.lo, hi: x.hi + y.hi };
+export interface ComposeOp<T> {
+  (x: T, y: T): T;
+  quality: (v: T) => number;
 }
 
-export function mul(x: Interval, y: Interval): Interval {
-  const p1 = x.lo * y.lo;
-  const p2 = x.lo * y.hi;
-  const p3 = x.hi * y.lo;
-  const p4 = x.hi * y.hi;
-  return {
-    lo: Math.min(p1, p2, p3, p4),
-    hi: Math.max(p1, p2, p3, p4)
-  };
-}
+export const add: ComposeOp<Interval> = Object.assign(
+  (x: Interval, y: Interval): Interval => ({ lo: x.lo + y.lo, hi: x.hi + y.hi }),
+  { quality: (v: Interval) => -(v.hi - v.lo) }
+);
 
-export interface Choice {
+export const mul: ComposeOp<Interval> = Object.assign(
+  (x: Interval, y: Interval): Interval => {
+    const p1 = x.lo * y.lo;
+    const p2 = x.lo * y.hi;
+    const p3 = x.hi * y.lo;
+    const p4 = x.hi * y.hi;
+    return {
+      lo: Math.min(p1, p2, p3, p4),
+      hi: Math.max(p1, p2, p3, p4)
+    };
+  },
+  { quality: (v: Interval) => -(v.hi - v.lo) }
+);
+
+export interface Choice<T> {
   child: 'x' | 'y';
   gain: number;
   cost: number;
-  refinedValue: Value<Interval>;
+  refinedValue: Value<T>;
 }
 
-export class CompositeValue implements Value<Interval> {
+export class CompositeValue<T> implements Value<T> {
   constructor(
-    public readonly op: (x: Interval, y: Interval) => Interval,
-    public readonly x: Value<Interval>,
-    public readonly y: Value<Interval>
+    public readonly op: ComposeOp<T>,
+    public readonly x: Value<T>,
+    public readonly y: Value<T>
   ) {}
 
-  current(): Interval {
+  current(): T {
     return this.op(this.x.current(), this.y.current());
   }
 
   quality(): number {
-    const cur = this.current();
-    return -(cur.hi - cur.lo);
+    return this.op.quality(this.current());
   }
 
-  getChoices(): Choice[] {
-    const choices: Choice[] = [];
+  getChoices(): Choice<T>[] {
+    const choices: Choice<T>[] = [];
     
     const xRefined = this.x.refine();
     if (xRefined.value !== this.x) {
-      const newInterval = this.op(xRefined.value.current(), this.y.current());
-      const newQuality = -(newInterval.hi - newInterval.lo);
+      const newCurrent = this.op(xRefined.value.current(), this.y.current());
+      const newQuality = this.op.quality(newCurrent);
       const gain = newQuality - this.quality();
       choices.push({ child: 'x', gain, cost: xRefined.cost, refinedValue: xRefined.value });
     }
 
     const yRefined = this.y.refine();
     if (yRefined.value !== this.y) {
-      const newInterval = this.op(this.x.current(), yRefined.value.current());
-      const newQuality = -(newInterval.hi - newInterval.lo);
+      const newCurrent = this.op(this.x.current(), yRefined.value.current());
+      const newQuality = this.op.quality(newCurrent);
       const gain = newQuality - this.quality();
       choices.push({ child: 'y', gain, cost: yRefined.cost, refinedValue: yRefined.value });
     }
@@ -61,7 +69,7 @@ export class CompositeValue implements Value<Interval> {
     return choices;
   }
 
-  refine(): { value: Value<Interval>; cost: number } {
+  refine(): { value: Value<T>; cost: number } {
     const choices = this.getChoices();
     if (choices.length === 0) {
       return { value: this, cost: 0 };
@@ -92,6 +100,6 @@ export class CompositeValue implements Value<Interval> {
   }
 }
 
-export function compose(op: (x: Interval, y: Interval) => Interval, x: Value<Interval>, y: Value<Interval>): CompositeValue {
+export function compose<T>(op: ComposeOp<T>, x: Value<T>, y: Value<T>): CompositeValue<T> {
   return new CompositeValue(op, x, y);
 }
